@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { IUserCreate, IUserUpdate } from "../common";
 import { ApiService } from "../services";
+import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
 
 interface IUser {
   id: string;
@@ -24,7 +26,13 @@ interface IUserPaginate {
 }
 
 export function useUsers() {
-  const api = new ApiService();
+  const api = useMemo(() => new ApiService(), []);
+  const router = useRouter();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IUserCreate>();
   const [users, setUsers] = useState<IUserPaginate>({
     search: "",
     page: 1,
@@ -35,14 +43,18 @@ export function useUsers() {
     data: [],
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const getOne = async (id: string) => {
     return api.get<IUser>(`/users/${id}`);
   };
 
-  const create = async (data: IUserCreate) => {
-    return api.post<IUser>("/users", data);
+  const createUser = async (data: IUserCreate) => {
+    try {
+      await api.post<IUser>("/users", data);
+      router.push("/users");
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const update = async (id: string, data: IUserUpdate) => {
@@ -55,9 +67,8 @@ export function useUsers() {
       const data = await api.get<IUserPaginate>("users");
       console.log(data);
       setUsers(data);
-      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch users");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -68,9 +79,9 @@ export function useUsers() {
     try {
       await api.delete<void>(`/users/${id}`);
       // Refresh users list
-      fetchUsers();
+      await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete user");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -83,8 +94,11 @@ export function useUsers() {
   return {
     users,
     loading,
-    error,
+    register,
+    handleSubmit,
+    errors,
     fetchUsers,
     handleDelete,
+    createUser,
   };
 }
